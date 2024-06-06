@@ -1,31 +1,29 @@
 use std::io::Read;
 use std::str::FromStr;
-use crate::lexer::Token::{TokChar, TokDef, TokEof, TokExtern, TokIdentifier, TokNumber};
+use crate::lexer::Token::Char;
 
 #[derive(Debug)]
 pub enum Token {
-    TokEof,
+    Eof,
 
     // commands
-    TokDef,
-    TokExtern,
+    Def,
+    Extern,
 
     // primary
-    TokIdentifier(String),
-    TokNumber(f64),
+    Identifier(String),
+    Number(f64),
 
     // unknown type
-    TokChar(char)
+    Char(char)
 }
 
 fn get_char() -> char {
     let mut buffer = [0;1];
     let stdin = std::io::stdin();
     let mut handle = stdin.lock();
-    match handle.read(&mut buffer) {
-        Ok(_) => {if buffer[0] == 0 {0 as char} else {buffer[0] as char}}
-        Err(_) => {0 as char}
-    }
+
+    handle.read_exact(&mut buffer).map_or(0 as char, |_| {buffer[0] as char})
 }
 
 /**
@@ -42,9 +40,9 @@ pub fn get_tok() -> Option<Token> {
                 identifier.push(last_char);
             };
             match identifier.as_str() {
-                "def" => TokDef,
-                "extern" => TokExtern,
-                _ => TokIdentifier(identifier),
+                "def" => Token::Def,
+                "extern" => Token::Extern,
+                _ => Token::Identifier(identifier),
             }
         }),
         '0'..='9' | '.' => {
@@ -52,23 +50,15 @@ pub fn get_tok() -> Option<Token> {
             while {last_char = get_char(); last_char.is_alphanumeric() || last_char == '.'} {
                 num_str.push(last_char);
             }
-            match f64::from_str(num_str.as_str()) {
-                Ok(n) => Some(TokNumber(n)),
-                Err(_) => None
-            }
+            f64::from_str(num_str.as_str()).ok().map(|n| {Token::Number(n)})
         },
         '#' => {
             while {last_char = get_char(); last_char != '\0' && last_char != '\n' && last_char != '\r'} {};
-            if last_char != '\0' {
-                get_tok()
-            } else if last_char == '\0' {
-                Some(TokEof)
-            } else { // unrecognized token, e.g. + or something
-                let ch = last_char;
-                last_char = get_char();
-                Some(TokChar(ch))
-            }
+            get_tok()
         }
-        _ => { None }
+        '\0' => {Some(Token::Eof)},
+        _ => {
+            Some(Char(last_char))
+        },
     }
 }
