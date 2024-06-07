@@ -19,10 +19,17 @@ pub enum Token {
 }
 
 pub struct Lexer {
-    pub cur_tok: Token
+    pub cur_tok: Token,
+    pub last_char: char,
 }
 
 impl Lexer {
+    pub fn new() -> Lexer {
+        Lexer {
+            cur_tok: Token::Eof,
+            last_char: ' ',
+        }
+    }
     fn get_char() -> char {
         let mut buffer = [0;1];
         let stdin = std::io::stdin();
@@ -34,17 +41,15 @@ impl Lexer {
     /**
     gets the next token from stdin
      */
-    pub fn get_tok() -> Option<Token> {
-        let mut last_char = ' ';
-        while last_char.is_whitespace() {last_char = Lexer::get_char(); }
+    fn get_tok(&mut self) -> Option<Token> {
+        while self.last_char.is_whitespace() {self.last_char = Lexer::get_char(); }
 
-        match last_char {
+        match self.last_char {
             'a'..='z' | 'A'..='Z' => Some({
-                let mut identifier = String::from(last_char);
-                while { last_char = Lexer::get_char(); last_char.is_alphanumeric() } {
-                    identifier.push(last_char);
+                let mut identifier = String::from(self.last_char);
+                while { self.last_char = Lexer::get_char(); self.last_char.is_alphanumeric() } {
+                    identifier.push(self.last_char);
                 };
-                println!("matching iden: {}", last_char);
                 match identifier.as_str() {
                     "def" => Token::Def,
                     "extern" => Token::Extern,
@@ -52,25 +57,27 @@ impl Lexer {
                 }
             }),
             '0'..='9' | '.' => {
-                let mut num_str = String::from(last_char);
-                while {last_char = Lexer::get_char(); last_char.is_alphanumeric() || last_char == '.'} {
-                    num_str.push(last_char);
+                let mut num_str = String::from(self.last_char);
+                while {self.last_char = Lexer::get_char(); self.last_char.is_alphanumeric() || self.last_char == '.'} {
+                    num_str.push(self.last_char);
                 }
                 f64::from_str(num_str.as_str()).ok().map(|n| {Token::Number(n)})
             },
             '#' => {
-                while {last_char = Lexer::get_char(); last_char != '\0' && last_char != '\n' && last_char != '\r'} {};
-                Lexer::get_tok()
+                while {self.last_char = Lexer::get_char(); self.last_char != '\0' && self.last_char != '\n' && self.last_char != '\r'} {};
+                self.get_tok()
             }
             '\0' => {Some(Token::Eof)},
             _ => {
-                Some(Char(last_char))
+                let res = self.last_char;
+                self.last_char = Lexer::get_char(); // move to next char
+                Some(Char(res))
             },
         }
     }
 
     pub fn get_next_tok(&mut self) {
-        match Self::get_tok() {
+        match self.get_tok() {
             None => {panic!("Could not get token")}
             Some(tok) => {self.cur_tok = tok;}
         }
