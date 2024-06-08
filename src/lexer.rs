@@ -24,10 +24,10 @@ pub struct Lexer {
 }
 
 impl Lexer {
-    pub fn new() -> Lexer {
+    pub fn new() -> Self {
         Lexer {
             cur_tok: Token::Eof,
-            last_char: ' ',
+            last_char: Self::get_char(),
         }
     }
     fn get_char() -> char {
