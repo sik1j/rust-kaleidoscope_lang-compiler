@@ -1,12 +1,11 @@
 use crate::lexer::{Lexer, Token};
-use std::collections::hash_map;
 
 // possible expression nodes
 #[derive(Debug)]
 pub enum Expr {
     Number(f64),
     Variable(String),
-    Binary{lhs: Box<Expr>, op: char, rhs: Box<Expr>},
+    Binary(char, Box<Expr>, Box<Expr>), // op, lhs, rhs
     Call{callee: String, args: Vec<Expr>},
 }
 
@@ -28,8 +27,10 @@ pub struct Parser {
 
 impl Parser {
     pub fn new() -> Parser {
+        let mut l = Lexer::new();
+        l.get_next_tok();
         Parser {
-            lexer: Lexer::new(),
+            lexer: l,
         }
     }
     pub fn parse_primary(&mut self) -> Expr {
@@ -100,7 +101,41 @@ impl Parser {
         Expr::Call {callee: id_name, args}
     }
 
-    fn parse_expr(&self) -> Expr {
-        todo!()
+    pub fn parse_expr(&mut self) -> Expr {
+        let lhs = self.parse_primary();
+
+        self.parse_binary_op_rhs(0, lhs)
+    }
+    pub fn parse_binary_op_rhs(&mut self, min_precedence: i64, mut lhs: Expr) -> Expr {
+        loop {
+            let cur_prec = self.get_tok_precedence();
+            if cur_prec < min_precedence {
+                return lhs;
+            }
+            let cur_op = match self.lexer.cur_tok {
+                Token::Char(c) => c,
+                _ => panic!("Unknown operation: {:?}", self.lexer.cur_tok)
+            };
+
+            self.lexer.get_next_tok(); // consume op
+            let mut rhs =self.parse_primary();
+
+            let next_prec = self.get_tok_precedence();
+
+            if next_prec > cur_prec {
+                rhs = self.parse_binary_op_rhs(cur_prec+1, rhs);
+            }
+            lhs = Expr::Binary(cur_op, Box::from(lhs), Box::from(rhs));
+        }
+    }
+    fn get_tok_precedence(&self) -> i64 {
+        match &self.lexer.cur_tok {
+            Token::Char('<') => 10,
+            Token::Char('+') => 20,
+            Token::Char('-') => 30,
+            Token::Char('*') => 40,
+            Token::Eof => -1, //
+            t => panic!("No precedence found for token: {:?}", t)
+        }
     }
 }
