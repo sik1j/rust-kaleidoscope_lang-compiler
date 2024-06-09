@@ -1,3 +1,5 @@
+use std::fmt::Debug;
+use std::io::Write;
 use crate::lexer::{Lexer, Token};
 
 // possible expression nodes
@@ -7,18 +9,8 @@ pub enum Expr {
     Variable(String),
     Binary(char, Box<Expr>, Box<Expr>), // op, lhs, rhs
     Call{callee: String, args: Vec<Expr>},
-}
-
-// function prototype
-struct Prototype {
-    name: String,
-    args: Vec<String>
-}
-
-// function definition
-struct Function {
-    prototype: Prototype,
-    body: Expr
+    Prototype {func_name: String, arg_names: Vec<String>},
+    Function {prototype: Box<Expr>, body: Box<Expr>},
 }
 
 pub struct Parser {
@@ -72,7 +64,6 @@ impl Parser {
             Token::Identifier(name) => name.clone(),
             _ => panic!("expected identifier")
         };
-        print!("called");
 
         self.lexer.get_next_tok(); // eat identifier
         if self.lexer.cur_tok != Token::Char('(') { // if simple variable name
@@ -134,8 +125,82 @@ impl Parser {
             Token::Char('+') => 20,
             Token::Char('-') => 30,
             Token::Char('*') => 40,
-            Token::Eof => -1, //
-            t => panic!("No precedence found for token: {:?}", t)
+            _ => -1,
         }
+    }
+
+    fn parse_prototype(&mut self) -> Expr {
+        let func_name = match &self.lexer.cur_tok {
+            Token::Identifier(name) => name.clone(),
+            _ => panic!("Expected ")
+        };
+        self.lexer.get_next_tok(); // consume name
+
+        if !matches!(self.lexer.cur_tok, Token::Char('(')) {
+            panic!("Expected a '(' in prototype");
+        }
+
+        let mut arg_names = vec![];
+        loop {
+            self.lexer.get_next_tok();
+            arg_names.push(match &self.lexer.cur_tok {
+                Token::Identifier(name) => name.clone(),
+                _ => break
+            })
+        }
+
+        if !matches!(self.lexer.cur_tok, Token::Char(')')) {
+            panic!("Expected '(' in prototpye");
+        }
+        self.lexer.get_next_tok(); // consume '('
+
+        Expr::Prototype {func_name, arg_names: arg_names}
+    }
+
+    fn parse_definition(&mut self) -> Expr {
+        self.lexer.get_next_tok(); // consume 'def'
+        let prototype = self.parse_prototype();
+
+        let body = self.parse_expr();
+        Expr::Function {prototype: Box::new(prototype), body: Box::new(body)}
+    }
+
+    fn parse_extern(&mut self) -> Expr {
+        self.lexer.get_next_tok(); // eat extern.
+        self.parse_prototype()
+    }
+
+    fn parse_top_level(&mut self) -> Expr {
+        let expr = self.parse_expr();
+
+        let proto = Expr::Prototype {func_name: String::from(""), arg_names: vec![]};
+        Expr::Function {body: Box::from(expr), prototype: Box::from(proto)}
+    }
+
+    pub fn main_loop(&mut self) {
+        loop {
+            match self.lexer.cur_tok {
+                Token::Eof => return,
+                Token::Char(';') => {self.lexer.get_next_tok(); continue}
+                Token::Def => self.handle_definition(),
+                Token::Extern => self.handle_extern(),
+                _ => self.handle_top_level_expression(),
+            }
+            print!("ready> "); std::io::stdout().flush().unwrap();
+        }
+    }
+
+
+    fn handle_definition(&mut self) {
+        self.parse_definition();
+        println!("Parsed a function definition.");
+    }
+    fn handle_extern(&mut self) {
+        self.parse_extern();
+        println!("Parsed an extern");
+    }
+    fn handle_top_level_expression(&mut self) {
+        self.parse_top_level();
+        println!("Parsed a top-level expr"); std::io::stdout().flush().unwrap();
     }
 }
